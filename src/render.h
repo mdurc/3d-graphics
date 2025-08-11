@@ -22,7 +22,7 @@ typedef struct {
 typedef struct {
   u32 shader_program;
   vec4 color;
-  // texture handles
+  u32 texture_id;
 } material_t; // appearance of an object
 
 typedef struct {

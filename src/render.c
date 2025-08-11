@@ -7,6 +7,9 @@
 #include "c-lib/misc.h"
 #include "file_io.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #define EN_ATTRIB(_n, _sz, _member) \
   glVertexAttribPointer(_n, _sz, GL_FLOAT, GL_FALSE, \
       sizeof(vertex_t), (void*)offsetof(vertex_t, _member)); \
@@ -164,96 +167,131 @@ static mesh_t create_cube_mesh(void) {
   // normally we would only need 8 vertices with the ebo, but when we
   // add lighting and normals, we need to specify each one per vertex on face
   vertex_t vertices[] = {
-      // back face
-      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},
-      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},
-      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},
-      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},
       // front face
-      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},
-      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},
-      {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},
-      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+      // back face
+      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
       // left face
-      {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},
+      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
       // right face
-      {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0, 0}},
-      {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0, 0}},
-      // bottom face
-      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},
-      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},
-      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},
-      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},
+      {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+      {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
       // top face
-      {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0, 0}},
-      {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0, 0}},
-      {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0, 0}},
-      {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0, 0}},
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+      // bottom face
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
   };
 
   // note the winding order - counter clockwise
   u32 indices[] = {
-      0,  1,  2,  2,  3,  0,  // back
-      4,  5,  6,  6,  7,  4,  // front
-      8,  9,  10, 10, 11, 8,  // left
-      12, 13, 14, 14, 15, 12, // right
-      16, 17, 18, 18, 19, 16, // bottom
-      20, 21, 22, 22, 23, 20  // top
+      0,  1,  3,  1,  2,  3,  // front
+      4,  5,  7,  5,  6,  7,  // back
+      8,  9,  11, 9,  10, 11, // left
+      12, 13, 15, 13, 14, 15, // right
+      16, 17, 19, 17, 18, 19, // top
+      20, 21, 23, 21, 22, 23, // bottom
   };
   return create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
 }
 
 static mesh_t create_ramp_mesh(void) {
   vertex_t vertices[] = {
-      // bottom face (y = -0.5)
-      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},  // 0
-      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},   // 1
-      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},  // 2
-      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}}, // 3
-
-      // back face (x = -0.5)
-      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}}, // 4
-      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},  // 5
-      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},  // 6
-      {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},   // 7
-
-      // ramp face (angled, +X side) - normal is (0.707, 0.707, 0)
-      {{-0.5f, 0.5f, -0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}}, // 8
-      {{0.5f, -0.5f, -0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}}, // 9
-      {{0.5f, -0.5f, 0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}},  // 10
-      {{-0.5f, 0.5f, 0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}},  // 11
-
-      // side face (z = 0.5)
-      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}}, // 12
-      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},  // 13
-      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},  // 14
-
-      // side face (z = -0.5)
-      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}}, // 15
-      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},  // 16
-      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},  // 17
+      // front face (ramp)
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.707f, 0.707f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.707f, 0.707f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.707f, 0.707f}, {1.0f, 1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.707f, 0.707f}, {0.0f, 1.0f}},
+      // back face
+      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+      // left side face
+      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+      // right side face
+      {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+      {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+      // bottom face
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
   };
 
   u32 indices[] = {
-      0,  1,  2,  0, 2,  3,  // bottom
-      4,  5,  6,  5, 7,  6,  // back
-      8,  9,  10, 8, 10, 11, // ramp
-      12, 13, 14,            // side 1 (0.5)
-      15, 16, 17,            // side 2 (-0.5)
+      0,  1,  3,  1,  2,  3, // front (ramp)
+      4,  5,  7,  5,  6,  7, // back
+      8,  9,  10,            // left
+      11, 12, 13,            // right
+      14, 15, 17, 15, 16, 17 // bottom
   };
 
   return create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
 }
 
-static material_t create_material(u32 shader_prog, vec4 color) {
+static u32 create_white_texture(void) {
+  // this will be the blank texture so that whatever color we wish to draw to
+  // the object, it will be that color only
+  u32 texture_id;
+  glGenTextures(1, &texture_id);
+  glBindTexture(GL_TEXTURE_2D, texture_id);
+
+  u8 solid_white[4] = {255, 255, 255, 255};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               solid_white);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  return texture_id;
+}
+
+static u32 create_texture(const char* path) {
+  u32 texture_id;
+  glGenTextures(1, &texture_id);
+  glBindTexture(GL_TEXTURE_2D, texture_id);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  int width, height, channel_count;
+  u8* image_data = stbi_load(path, &width, &height, &channel_count, 0);
+  ASSERT(image_data, "failed to load image from stb image: %s", path);
+  GLenum format = channel_count == 3 ? GL_RGB : GL_RGBA;
+  glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+               GL_UNSIGNED_BYTE, image_data);
+  glGenerateMipmap(GL_TEXTURE_2D);
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  stbi_image_free(image_data);
+  return texture_id;
+}
+
+static material_t create_material(u32 shader_prog, vec4 color, u32 texture_id) {
   return (material_t){
       .shader_program = shader_prog,
       .color = {color[0], color[1], color[2], color[3]},
+      .texture_id = texture_id,
   };
 }
 
@@ -266,9 +304,9 @@ static void update_models(GLFWwindow* window, f32 angle) {
   for (u32 i = 0; i < object_count; ++i) {
     f32 t = angle * (i == 0 ? -1.0f : 1.0f);
     mat4x4_identity(rotation);
-    mat4x4_rotate_y(rotation, rotation, t);
+    // mat4x4_rotate_y(rotation, rotation, t);
     mat4x4_rotate_x(rotation, rotation, t / 2.0f);
-    mat4x4_rotate_z(rotation, rotation, t / 3.0f);
+    // mat4x4_rotate_z(rotation, rotation, t / 3.0f);
     mat4x4_identity(objects[i].model);
     mat4x4_translate(objects[i].model, i == 0 ? -1.0f : 1.0f, 0.0f, 0.0f);
     mat4x4_mul(objects[i].model, objects[i].model, rotation);
@@ -308,6 +346,12 @@ GLFWwindow* render_init(u32 width, u32 height) {
   glViewport(0, 0, framebuffer_width, framebuffer_height);
   glEnable(GL_DEPTH_TEST);
 
+  stbi_set_flip_vertically_on_load(1);
+
+  u32 tex_cube = create_texture("res/map_wall.png");
+  u32 tex_ramp = create_texture("res/map_floor.png");
+  u32 tex_white = create_white_texture();
+
   // u32 default_prog = create_shader_program("src/shaders/default.vert",
   //                                          "src/shaders/default.frag");
   u32 light_prog =
@@ -315,8 +359,8 @@ GLFWwindow* render_init(u32 width, u32 height) {
 
   meshes[0] = create_cube_mesh();
   meshes[1] = create_ramp_mesh();
-  materials[0] = create_material(light_prog, RED);
-  materials[1] = create_material(light_prog, BLUE);
+  materials[0] = create_material(light_prog, TURQUOISE, tex_cube);
+  materials[1] = create_material(light_prog, RED, tex_white);
 
   object_count = 2;
   objects[0] = (render_object_t){.mesh = &meshes[0], .material = &materials[0]};
@@ -413,6 +457,10 @@ static void render_object(GLFWwindow* window, render_object_t* object) {
   u32 prog = object->material->shader_program;
   glUseProgram(prog);
 
+  glUniform1i(glGetUniformLocation(prog, "u_texture0"), 0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, object->material->texture_id);
+
   mat4x4 normal_matrix;
   mat4x4_invert(normal_matrix, object->model);
   mat4x4_transpose(normal_matrix, normal_matrix);
@@ -424,10 +472,10 @@ static void render_object(GLFWwindow* window, render_object_t* object) {
                      (const GLfloat*)view_proj);
   glUniformMatrix3fv(glGetUniformLocation(prog, "u_normal_matrix"), 1, GL_TRUE,
                      &normal_matrix[0][0]);
-  glUniform3fv(glGetUniformLocation(prog, "u_dir_to_light"), 1,
-               (vec3){1.0f, 1.0f, 0.5f});
+  glUniform3fv(glGetUniformLocation(prog, "u_light_dir"), 1,
+               (vec3){0.0f, 0.0f, -1.0f});
   glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1,
-               (vec4){0.8f, 0.8f, 0.8f, 1.0f}); // white light at 80% intensity
+               (vec4){0.8f, 0.8f, 0.8f, 1.0f});
   glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1,
                object->material->color);
   glUniform4fv(glGetUniformLocation(prog, "u_ambient_intensity"), 1,
