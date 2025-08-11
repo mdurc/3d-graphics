@@ -358,17 +358,22 @@ void render_cube(GLFWwindow* window) {
   u32 prog = cube.material->shader_program;
   glUseProgram(prog);
 
+  mat4x4 normal_matrix;
+  ASSERT(mat4x4_invert(normal_matrix, cube.model));
+  mat4x4_transpose(normal_matrix, normal_matrix);
+
   // transpose is true, because we are tracking in row major format formats
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
                      &cube.model[0][0]);
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_view_proj"), 1, GL_TRUE,
                      &cube.view_proj[0][0]);
+  glUniformMatrix3fv(glGetUniformLocation(prog, "u_normal_matrix"), 1, GL_TRUE,
+                     &normal_matrix[0][0]);
 
   glUniform3fv(glGetUniformLocation(prog, "u_dir_to_light"), 1,
                (vec3){1.0f, 1.0f, 0.5f});
-  glUniform4fv(glGetUniformLocation(prog, "u_light_intensity"), 1,
-               (vec4){0.8f, 0.8f, 0.8f, 1.0f});
-  glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1, WHITE);
+  glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1,
+               (vec4){0.8f, 0.8f, 0.8f, 1.0f}); // white light at 80% intensity
   glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1,
                cube.material->color);
   glUniform4fv(glGetUniformLocation(prog, "u_ambient_intensity"), 1,

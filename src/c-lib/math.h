@@ -341,4 +341,116 @@ M_INLINE void mat4x4_look_at(mat4x4 M, vec3 const eye, vec3 const center,
   M[3][3] = 1.0f;
 }
 
+M_INLINE void mat4x4_transpose(mat4x4 M, mat4x4 const src) {
+  mat4x4 res;
+  for (u32 r = 0; r < 4; ++r) {
+    for (u32 c = 0; c < 4; ++c) {
+      res[r][c] = src[c][r];
+    }
+  }
+  mat4x4_mov(M, res);
+}
+
+M_INLINE bool mat4x4_invert(mat4x4 M, mat4x4 const src) {
+  mat4x4 inv;
+  f32 det;
+
+  inv[0][0] =
+      src[1][1] * src[2][2] * src[3][3] - src[1][1] * src[2][3] * src[3][2] -
+      src[2][1] * src[1][2] * src[3][3] + src[2][1] * src[1][3] * src[3][2] +
+      src[3][1] * src[1][2] * src[2][3] - src[3][1] * src[1][3] * src[2][2];
+
+  inv[0][1] =
+      -src[0][1] * src[2][2] * src[3][3] + src[0][1] * src[2][3] * src[3][2] +
+      src[2][1] * src[0][2] * src[3][3] - src[2][1] * src[0][3] * src[3][2] -
+      src[3][1] * src[0][2] * src[2][3] + src[3][1] * src[0][3] * src[2][2];
+
+  inv[0][2] =
+      src[0][1] * src[1][2] * src[3][3] - src[0][1] * src[1][3] * src[3][2] -
+      src[1][1] * src[0][2] * src[3][3] + src[1][1] * src[0][3] * src[3][2] +
+      src[3][1] * src[0][2] * src[1][3] - src[3][1] * src[0][3] * src[1][2];
+
+  inv[0][3] =
+      -src[0][1] * src[1][2] * src[2][3] + src[0][1] * src[1][3] * src[2][2] +
+      src[1][1] * src[0][2] * src[2][3] - src[1][1] * src[0][3] * src[2][2] -
+      src[2][1] * src[0][2] * src[1][3] + src[2][1] * src[0][3] * src[1][2];
+
+  inv[1][0] =
+      -src[1][0] * src[2][2] * src[3][3] + src[1][0] * src[2][3] * src[3][2] +
+      src[2][0] * src[1][2] * src[3][3] - src[2][0] * src[1][3] * src[3][2] -
+      src[3][0] * src[1][2] * src[2][3] + src[3][0] * src[1][3] * src[2][2];
+
+  inv[1][1] =
+      src[0][0] * src[2][2] * src[3][3] - src[0][0] * src[2][3] * src[3][2] -
+      src[2][0] * src[0][2] * src[3][3] + src[2][0] * src[0][3] * src[3][2] +
+      src[3][0] * src[0][2] * src[2][3] - src[3][0] * src[0][3] * src[2][2];
+
+  inv[1][2] =
+      -src[0][0] * src[1][2] * src[3][3] + src[0][0] * src[1][3] * src[3][2] +
+      src[1][0] * src[0][2] * src[3][3] - src[1][0] * src[0][3] * src[3][2] -
+      src[3][0] * src[0][2] * src[1][3] + src[3][0] * src[0][3] * src[1][2];
+
+  inv[1][3] =
+      src[0][0] * src[1][2] * src[2][3] - src[0][0] * src[1][3] * src[2][2] -
+      src[1][0] * src[0][2] * src[2][3] + src[1][0] * src[0][3] * src[2][2] +
+      src[2][0] * src[0][2] * src[1][3] - src[2][0] * src[0][3] * src[1][2];
+
+  inv[2][0] =
+      src[1][0] * src[2][1] * src[3][3] - src[1][0] * src[2][3] * src[3][1] -
+      src[2][0] * src[1][1] * src[3][3] + src[2][0] * src[1][3] * src[3][1] +
+      src[3][0] * src[1][1] * src[2][3] - src[3][0] * src[1][3] * src[2][1];
+
+  inv[2][1] =
+      -src[0][0] * src[2][1] * src[3][3] + src[0][0] * src[2][3] * src[3][1] +
+      src[2][0] * src[0][1] * src[3][3] - src[2][0] * src[0][3] * src[3][1] -
+      src[3][0] * src[0][1] * src[2][3] + src[3][0] * src[0][3] * src[2][1];
+
+  inv[2][2] =
+      src[0][0] * src[1][1] * src[3][3] - src[0][0] * src[1][3] * src[3][1] -
+      src[1][0] * src[0][1] * src[3][3] + src[1][0] * src[0][3] * src[3][1] +
+      src[3][0] * src[0][1] * src[1][3] - src[3][0] * src[0][3] * src[1][1];
+
+  inv[2][3] =
+      -src[0][0] * src[1][1] * src[2][3] + src[0][0] * src[1][3] * src[2][1] +
+      src[1][0] * src[0][1] * src[2][3] - src[1][0] * src[0][3] * src[2][1] -
+      src[2][0] * src[0][1] * src[1][3] + src[2][0] * src[0][3] * src[1][1];
+
+  inv[3][0] =
+      -src[1][0] * src[2][1] * src[3][2] + src[1][0] * src[2][2] * src[3][1] +
+      src[2][0] * src[1][1] * src[3][2] - src[2][0] * src[1][2] * src[3][1] -
+      src[3][0] * src[1][1] * src[2][2] + src[3][0] * src[1][2] * src[2][1];
+
+  inv[3][1] =
+      src[0][0] * src[2][1] * src[3][2] - src[0][0] * src[2][2] * src[3][1] -
+      src[2][0] * src[0][1] * src[3][2] + src[2][0] * src[0][2] * src[3][1] +
+      src[3][0] * src[0][1] * src[2][2] - src[3][0] * src[0][2] * src[2][1];
+
+  inv[3][2] =
+      -src[0][0] * src[1][1] * src[3][2] + src[0][0] * src[1][2] * src[3][1] +
+      src[1][0] * src[0][1] * src[3][2] - src[1][0] * src[0][2] * src[3][1] -
+      src[3][0] * src[0][1] * src[1][2] + src[3][0] * src[0][2] * src[1][1];
+
+  inv[3][3] =
+      src[0][0] * src[1][1] * src[2][2] - src[0][0] * src[1][2] * src[2][1] -
+      src[1][0] * src[0][1] * src[2][2] + src[1][0] * src[0][2] * src[2][1] +
+      src[2][0] * src[0][1] * src[1][2] - src[2][0] * src[0][2] * src[1][1];
+
+  det = src[0][0] * inv[0][0] + src[0][1] * inv[1][0] + src[0][2] * inv[2][0] +
+        src[0][3] * inv[3][0];
+
+  // check if invertible
+  if (fabsf(det) < FLOAT_EPSILON) return false;
+
+  det = 1.0f / det;
+
+  for (u32 r = 0; r < 4; ++r) {
+    for (u32 c = 0; c < 4; ++c) {
+      inv[r][c] *= det;
+    }
+  }
+
+  mat4x4_mov(M, inv);
+  return true;
+}
+
 #endif
