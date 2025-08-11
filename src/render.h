@@ -28,13 +28,26 @@ typedef struct {
 typedef struct {
   mesh_t* mesh;
   material_t* material;
-  mat4x4 transform;
+  mat4x4 model;
+  mat4x4 view_proj;
 } render_object_t; // single drawable object
+
+typedef struct {
+  vec3 position;
+  f32 yaw;   // (x) in degrees
+  f32 pitch; // (y) in degrees
+  f64 last_x;
+  f64 last_y;
+  bool first_mouse;
+} camera_t;
 
 GLFWwindow* render_init(u32 width, u32 height);
 void render_destroy(GLFWwindow* window);
 
+camera_t* get_camera(void);
+void get_camera_front(vec3 result);
+
 void render_begin(void);
 void render_end(GLFWwindow* window);
 
-void render_cube(void);
+void render_cube(GLFWwindow* window);

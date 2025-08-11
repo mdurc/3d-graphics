@@ -8,25 +8,64 @@
 
 state_t state;
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action,
-                         int mods) {
-  (void)scancode;
-  (void)mods;
-  if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-    glfwSetWindowShouldClose(window, GLFW_TRUE);
+static void input_handle(float delta_time) {
+  camera_t* camera = get_camera();
+  const float camera_speed = 10.0f * delta_time;
+
+  if (state.input.states[INPUT_KEY_ESCAPE]) {
+    glfwSetWindowShouldClose(state.window, true);
+  }
+
+  vec3 camera_front;
+  get_camera_front(camera_front);
+
+  vec3 up_dir = (vec3){0.0f, 1.0f, 0.0f};
+  vec3 right;
+  vec3_cross(right, camera_front, up_dir);
+  vec3_normalize(right, right);
+
+  vec3 move_vector;
+  if (state.input.states[INPUT_KEY_W]) {
+    vec3_scale(move_vector, camera_front, camera_speed);
+    vec3_add(camera->position, camera->position, move_vector);
+  }
+  if (state.input.states[INPUT_KEY_S]) {
+    vec3_scale(move_vector, camera_front, camera_speed);
+    vec3_sub(camera->position, camera->position, move_vector);
+  }
+  if (state.input.states[INPUT_KEY_A]) {
+    vec3_scale(move_vector, right, camera_speed);
+    vec3_sub(camera->position, camera->position, move_vector);
+  }
+  if (state.input.states[INPUT_KEY_D]) {
+    vec3_scale(move_vector, right, camera_speed);
+    vec3_add(camera->position, camera->position, move_vector);
+  }
+  if (state.input.states[INPUT_KEY_UP]) {
+    camera->position[1] += camera_speed;
+  }
+  if (state.input.states[INPUT_KEY_DOWN]) {
+    camera->position[1] -= camera_speed;
+  }
 }
 
 int main(void) {
-  GLFWwindow* window = render_init(800, 800);
-  glfwSetKeyCallback(window, key_callback);
+  state.window = render_init(800, 800);
+  config_init();
 
-  while (!glfwWindowShouldClose(window)) {
+  while (!glfwWindowShouldClose(state.window)) {
+    time_update();
+    input_update();
+
+    input_handle(state.time.delta);
+
     render_begin();
-    render_cube();
-    render_end(window);
-    glfwPollEvents();
+    render_cube(state.window);
+    render_end(state.window);
+
+    time_update_late();
   }
 
-  render_destroy(window);
+  render_destroy(state.window);
   return 0;
 }
