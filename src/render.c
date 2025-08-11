@@ -14,12 +14,14 @@
 
 #define RAD(_t) (_t * (M_PI / 180.0f))
 
-static mesh_t cube_mesh;
-static material_t cube_material;
-
-static render_object_t cube;
-
+#define MAX_OBJECTS 10
+static mesh_t meshes[MAX_OBJECTS];
+static material_t materials[MAX_OBJECTS];
+static render_object_t objects[MAX_OBJECTS];
+static u32 object_count = 0;
 static camera_t camera;
+
+static mat4x4 view_proj;
 
 static void mouse_callback(GLFWwindow* window, f64 xpos, f64 ypos) {
   (void)window;
@@ -158,61 +160,7 @@ static mesh_t create_mesh(vertex_t* vertices, u32 vertices_size, u32* indices,
   };
 }
 
-static material_t create_material(u32 shader_prog, vec4 color) {
-  return (material_t){
-      .shader_program = shader_prog,
-      .color = {color[0], color[1], color[2], color[3]},
-  };
-}
-
-static void cube_transform_update(GLFWwindow* window, f32 angle) {
-  int width, height;
-  glfwGetFramebufferSize(window, &width, &height);
-  f32 aspect_ratio = (f32)width / (f32)height;
-
-  mat4x4 rotation;
-  mat4x4_identity(cube.model);
-  mat4x4_translate(cube.model, 0.0f, 0.0f, 0.0f);
-  mat4x4_identity(rotation);
-  mat4x4_rotate_y(rotation, rotation, angle);
-  mat4x4_rotate_x(rotation, rotation, angle / 2.0f);
-  mat4x4_rotate_z(rotation, rotation, angle / 3.0f);
-  mat4x4_mul(cube.model, cube.model, rotation);
-
-  mat4x4 view;
-  vec3 camera_front;
-  get_camera_front(camera_front);
-
-  vec3 camera_target;
-  vec3_add(camera_target, camera.position, camera_front);
-  mat4x4_look_at(view, camera.position, camera_target,
-                 (vec3){0.0f, 1.0f, 0.0f});
-
-  mat4x4 proj;
-  mat4x4_perspective(proj, RAD(45.0f), aspect_ratio, 0.1f, 100.0f);
-  mat4x4_mul(cube.view_proj, proj, view);
-}
-
-GLFWwindow* render_init(u32 width, u32 height) {
-  GLFWwindow* window = init_window(width, height);
-
-  camera = (camera_t){
-      .position = {0.0f, 0.5f, 5.0f},
-      .yaw = -90.0f, // look down the -z axis
-      .pitch = 0.0f,
-      .first_mouse = true,
-  };
-
-  int framebuffer_width, framebuffer_height;
-  glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-  glfwSetCursorPosCallback(window, mouse_callback);
-  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-  glViewport(0, 0, framebuffer_width, framebuffer_height);
-  glEnable(GL_DEPTH_TEST);
-
+static mesh_t create_cube_mesh(void) {
   // normally we would only need 8 vertices with the ebo, but when we
   // add lighting and normals, we need to specify each one per vertex on face
   vertex_t vertices[] = {
@@ -257,17 +205,122 @@ GLFWwindow* render_init(u32 width, u32 height) {
       16, 17, 18, 18, 19, 16, // bottom
       20, 21, 22, 22, 23, 20  // top
   };
+  return create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
+}
+
+static mesh_t create_ramp_mesh(void) {
+  vertex_t vertices[] = {
+      // bottom face (y = -0.5)
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},  // 0
+      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},   // 1
+      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}},  // 2
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0, 0}}, // 3
+
+      // back face (x = -0.5)
+      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}}, // 4
+      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},  // 5
+      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},  // 6
+      {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0, 0}},   // 7
+
+      // ramp face (angled, +X side) - normal is (0.707, 0.707, 0)
+      {{-0.5f, 0.5f, -0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}}, // 8
+      {{0.5f, -0.5f, -0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}}, // 9
+      {{0.5f, -0.5f, 0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}},  // 10
+      {{-0.5f, 0.5f, 0.5f}, {0.707f, 0.707f, 0.0f}, {0, 0}},  // 11
+
+      // side face (z = 0.5)
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}}, // 12
+      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},  // 13
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0, 0}},  // 14
+
+      // side face (z = -0.5)
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}}, // 15
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},  // 16
+      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0, 0}},  // 17
+  };
+
+  u32 indices[] = {
+      0,  1,  2,  0, 2,  3,  // bottom
+      4,  5,  6,  5, 7,  6,  // back
+      8,  9,  10, 8, 10, 11, // ramp
+      12, 13, 14,            // side 1 (0.5)
+      15, 16, 17,            // side 2 (-0.5)
+  };
+
+  return create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
+}
+
+static material_t create_material(u32 shader_prog, vec4 color) {
+  return (material_t){
+      .shader_program = shader_prog,
+      .color = {color[0], color[1], color[2], color[3]},
+  };
+}
+
+static void update_models(GLFWwindow* window, f32 angle) {
+  int width, height;
+  glfwGetFramebufferSize(window, &width, &height);
+  f32 aspect_ratio = (f32)width / (f32)height;
+
+  mat4x4 rotation;
+  for (u32 i = 0; i < object_count; ++i) {
+    f32 t = angle * (i == 0 ? -1.0f : 1.0f);
+    mat4x4_identity(rotation);
+    mat4x4_rotate_y(rotation, rotation, t);
+    mat4x4_rotate_x(rotation, rotation, t / 2.0f);
+    mat4x4_rotate_z(rotation, rotation, t / 3.0f);
+    mat4x4_identity(objects[i].model);
+    mat4x4_translate(objects[i].model, i == 0 ? -1.0f : 1.0f, 0.0f, 0.0f);
+    mat4x4_mul(objects[i].model, objects[i].model, rotation);
+  }
+
+  mat4x4 view;
+  vec3 camera_front;
+  get_camera_front(camera_front);
+
+  vec3 camera_target;
+  vec3_add(camera_target, camera.position, camera_front);
+  mat4x4_look_at(view, camera.position, camera_target,
+                 (vec3){0.0f, 1.0f, 0.0f});
+
+  mat4x4 proj;
+  mat4x4_perspective(proj, RAD(45.0f), aspect_ratio, 0.1f, 100.0f);
+  mat4x4_mul(view_proj, proj, view);
+}
+
+GLFWwindow* render_init(u32 width, u32 height) {
+  GLFWwindow* window = init_window(width, height);
+
+  camera = (camera_t){
+      .position = {0.0f, 0.5f, 5.0f},
+      .yaw = -90.0f, // look down the -z axis
+      .pitch = 0.0f,
+      .first_mouse = true,
+  };
+
+  int framebuffer_width, framebuffer_height;
+  glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+  glfwSetCursorPosCallback(window, mouse_callback);
+  glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
+  glViewport(0, 0, framebuffer_width, framebuffer_height);
+  glEnable(GL_DEPTH_TEST);
 
   // u32 default_prog = create_shader_program("src/shaders/default.vert",
   //                                          "src/shaders/default.frag");
   u32 light_prog =
       create_shader_program("src/shaders/light.vert", "src/shaders/light.frag");
 
-  cube_mesh = create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
-  cube_material = create_material(light_prog, RED);
+  meshes[0] = create_cube_mesh();
+  meshes[1] = create_ramp_mesh();
+  materials[0] = create_material(light_prog, RED);
+  materials[1] = create_material(light_prog, BLUE);
 
-  cube.mesh = &cube_mesh;
-  cube.material = &cube_material;
+  object_count = 2;
+  objects[0] = (render_object_t){.mesh = &meshes[0], .material = &materials[0]};
+  objects[1] = (render_object_t){.mesh = &meshes[1], .material = &materials[1]};
 
   LOG("Render window and geometry/meshes initialized");
 
@@ -283,8 +336,10 @@ static void destroy_material(material_t* material) {
   glDeleteProgram(material->shader_program);
 }
 void render_destroy(GLFWwindow* window) {
-  destroy_mesh(&cube_mesh);
-  destroy_material(&cube_material);
+  for (u32 i = 0; i < object_count; ++i) {
+    destroy_mesh(&meshes[i]);
+  }
+  destroy_material(&materials[0]);
   glfwDestroyWindow(window); // optional
   glfwTerminate();
 }
@@ -305,7 +360,7 @@ void render_begin(void) {
 
 void render_end(GLFWwindow* window) { glfwSwapBuffers(window); }
 
-void render_cube(GLFWwindow* window) {
+static void render_object(GLFWwindow* window, render_object_t* object) {
   /* lighting
 
      Diffuse Lighting Equation: R = D * I * cos(T)
@@ -352,34 +407,37 @@ void render_cube(GLFWwindow* window) {
      no angle of incidence in the diffuse calculation. Thus, the formula is
      simply: ambient light intensity * diffuse surface color.
   */
-  cube_transform_update(window, glfwGetTime());
-  ASSERT(cube.mesh && cube.material);
+  update_models(window, glfwGetTime());
+  ASSERT(object->mesh && object->material);
 
-  u32 prog = cube.material->shader_program;
+  u32 prog = object->material->shader_program;
   glUseProgram(prog);
 
   mat4x4 normal_matrix;
-  ASSERT(mat4x4_invert(normal_matrix, cube.model));
+  mat4x4_invert(normal_matrix, object->model);
   mat4x4_transpose(normal_matrix, normal_matrix);
 
   // transpose is true, because we are tracking in row major format formats
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
-                     &cube.model[0][0]);
+                     &object->model[0][0]);
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_view_proj"), 1, GL_TRUE,
-                     &cube.view_proj[0][0]);
+                     (const GLfloat*)view_proj);
   glUniformMatrix3fv(glGetUniformLocation(prog, "u_normal_matrix"), 1, GL_TRUE,
                      &normal_matrix[0][0]);
-
   glUniform3fv(glGetUniformLocation(prog, "u_dir_to_light"), 1,
                (vec3){1.0f, 1.0f, 0.5f});
   glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1,
                (vec4){0.8f, 0.8f, 0.8f, 1.0f}); // white light at 80% intensity
   glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1,
-               cube.material->color);
+               object->material->color);
   glUniform4fv(glGetUniformLocation(prog, "u_ambient_intensity"), 1,
                (vec4){0.2f, 0.2f, 0.2f, 1.0f});
 
-  glBindVertexArray(cube.mesh->vao);
-  glDrawElements(GL_TRIANGLES, cube.mesh->index_count, GL_UNSIGNED_INT, NULL);
+  glBindVertexArray(object->mesh->vao);
+  glDrawElements(GL_TRIANGLES, object->mesh->index_count, GL_UNSIGNED_INT,
+                 NULL);
   glBindVertexArray(0);
 }
+
+void render_cube(GLFWwindow* window) { render_object(window, &objects[0]); }
+void render_ramp(GLFWwindow* window) { render_object(window, &objects[1]); }

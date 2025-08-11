@@ -29,7 +29,6 @@ typedef struct {
   mesh_t* mesh;
   material_t* material;
   mat4x4 model;
-  mat4x4 view_proj;
 } render_object_t; // single drawable object
 
 typedef struct {
@@ -51,3 +50,4 @@ void render_begin(void);
 void render_end(GLFWwindow* window);
 
 void render_cube(GLFWwindow* window);
+void render_ramp(GLFWwindow* window);

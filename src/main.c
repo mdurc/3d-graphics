@@ -61,6 +61,7 @@ int main(void) {
 
     render_begin();
     render_cube(state.window);
+    render_ramp(state.window);
     render_end(state.window);
 
     time_update_late();
