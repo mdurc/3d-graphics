@@ -10,6 +10,7 @@ state_t state;
 
 static void input_handle(float delta_time) {
   camera_t* camera = get_camera();
+  vec3* light = get_light_pos();
   const float camera_speed = 10.0f * delta_time;
 
   if (state.input.states[INPUT_KEY_ESCAPE]) {
@@ -42,15 +43,21 @@ static void input_handle(float delta_time) {
     vec3_add(camera->position, camera->position, move_vector);
   }
   if (state.input.states[INPUT_KEY_UP]) {
-    camera->position[1] += camera_speed;
+    (*light)[1] += 0.1f;
   }
   if (state.input.states[INPUT_KEY_DOWN]) {
-    camera->position[1] -= camera_speed;
+    (*light)[1] -= 0.1f;
+  }
+  if (state.input.states[INPUT_KEY_LEFT]) {
+    (*light)[0] -= 0.1f;
+  }
+  if (state.input.states[INPUT_KEY_RIGHT]) {
+    (*light)[0] += 0.1f;
   }
 }
 
 int main(void) {
-  state.window = render_init(800, 800);
+  state.window = render_init(1650, 1000);
   config_init();
 
   while (!glfwWindowShouldClose(state.window)) {
@@ -62,6 +69,7 @@ int main(void) {
     render_begin();
     render_cube(state.window);
     render_ramp(state.window);
+    render_light(state.window);
     render_end(state.window);
 
     time_update_late();

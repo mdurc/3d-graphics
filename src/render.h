@@ -38,11 +38,14 @@ typedef struct {
   f64 last_x;
   f64 last_y;
   bool first_mouse;
+
+  mat4x4 view_proj;
 } camera_t;
 
 GLFWwindow* render_init(u32 width, u32 height);
 void render_destroy(GLFWwindow* window);
 
+vec3* get_light_pos(void);
 camera_t* get_camera(void);
 void get_camera_front(vec3 result);
 
@@ -51,3 +54,4 @@ void render_end(GLFWwindow* window);
 
 void render_cube(GLFWwindow* window);
 void render_ramp(GLFWwindow* window);
+void render_light(GLFWwindow* window);

@@ -24,7 +24,7 @@ static render_object_t objects[MAX_OBJECTS];
 static u32 object_count = 0;
 static camera_t camera;
 
-static mat4x4 view_proj;
+static vec3 light_pos = (vec3){0.0f, 0.0f, 3.0f};
 
 static void mouse_callback(GLFWwindow* window, f64 xpos, f64 ypos) {
   (void)window;
@@ -301,16 +301,21 @@ static void update_models(GLFWwindow* window, f32 angle) {
   f32 aspect_ratio = (f32)width / (f32)height;
 
   mat4x4 rotation;
-  for (u32 i = 0; i < object_count; ++i) {
-    f32 t = angle * (i == 0 ? -1.0f : 1.0f);
-    mat4x4_identity(rotation);
-    // mat4x4_rotate_y(rotation, rotation, t);
-    mat4x4_rotate_x(rotation, rotation, t / 2.0f);
-    // mat4x4_rotate_z(rotation, rotation, t / 3.0f);
-    mat4x4_identity(objects[i].model);
-    mat4x4_translate(objects[i].model, i == 0 ? -1.0f : 1.0f, 0.0f, 0.0f);
-    mat4x4_mul(objects[i].model, objects[i].model, rotation);
-  }
+  mat4x4_identity(rotation);
+  // mat4x4_rotate_y(rotation, rotation, angle);
+  mat4x4_rotate_x(rotation, rotation, angle / 2.0f);
+  // mat4x4_rotate_z(rotation, rotation, angle / 3.0f);
+
+  mat4x4_identity(objects[0].model);
+  mat4x4_identity(objects[1].model);
+  mat4x4_identity(objects[2].model);
+  mat4x4_translate(objects[0].model, -1.0f, 0.0f, 0.0f);
+  mat4x4_translate(objects[1].model, 1.0f, 0.0f, 0.0f);
+  mat4x4_translate(objects[2].model, light_pos[0], light_pos[1], light_pos[2]);
+
+  mat4x4_mul(objects[0].model, objects[0].model, rotation);
+  mat4x4_mul(objects[1].model, objects[1].model, rotation);
+  mat4x4_scale_aniso(objects[2].model, objects[2].model, 0.2f, 0.2f, 0.2f);
 
   mat4x4 view;
   vec3 camera_front;
@@ -323,7 +328,7 @@ static void update_models(GLFWwindow* window, f32 angle) {
 
   mat4x4 proj;
   mat4x4_perspective(proj, RAD(45.0f), aspect_ratio, 0.1f, 100.0f);
-  mat4x4_mul(view_proj, proj, view);
+  mat4x4_mul(camera.view_proj, proj, view);
 }
 
 GLFWwindow* render_init(u32 width, u32 height) {
@@ -352,8 +357,8 @@ GLFWwindow* render_init(u32 width, u32 height) {
   u32 tex_ramp = create_texture("res/map_floor.png");
   u32 tex_white = create_white_texture();
 
-  // u32 default_prog = create_shader_program("src/shaders/default.vert",
-  //                                          "src/shaders/default.frag");
+  u32 default_prog = create_shader_program("src/shaders/default.vert",
+                                           "src/shaders/default.frag");
   u32 light_prog =
       create_shader_program("src/shaders/light.vert", "src/shaders/light.frag");
 
@@ -361,10 +366,12 @@ GLFWwindow* render_init(u32 width, u32 height) {
   meshes[1] = create_ramp_mesh();
   materials[0] = create_material(light_prog, TURQUOISE, tex_cube);
   materials[1] = create_material(light_prog, RED, tex_white);
+  materials[2] = create_material(default_prog, YELLOW, tex_white);
 
-  object_count = 2;
+  object_count = 3;
   objects[0] = (render_object_t){.mesh = &meshes[0], .material = &materials[0]};
   objects[1] = (render_object_t){.mesh = &meshes[1], .material = &materials[1]};
+  objects[2] = (render_object_t){.mesh = &meshes[0], .material = &materials[2]};
 
   LOG("Render window and geometry/meshes initialized");
 
@@ -388,8 +395,8 @@ void render_destroy(GLFWwindow* window) {
   glfwTerminate();
 }
 
+vec3* get_light_pos(void) { return &light_pos; }
 camera_t* get_camera(void) { return &camera; };
-
 void get_camera_front(vec3 result) {
   result[0] = cos(RAD(camera.yaw)) * cos(RAD(camera.pitch)); // x
   result[1] = sin(RAD(camera.pitch));                        // y
@@ -404,7 +411,8 @@ void render_begin(void) {
 
 void render_end(GLFWwindow* window) { glfwSwapBuffers(window); }
 
-static void render_object(GLFWwindow* window, render_object_t* object) {
+static void render_object(GLFWwindow* window, render_object_t* object,
+                          bool lit) {
   /* lighting
 
      Diffuse Lighting Equation: R = D * I * cos(T)
@@ -461,25 +469,23 @@ static void render_object(GLFWwindow* window, render_object_t* object) {
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, object->material->texture_id);
 
-  mat4x4 normal_matrix;
-  mat4x4_invert(normal_matrix, object->model);
-  mat4x4_transpose(normal_matrix, normal_matrix);
-
   // transpose is true, because we are tracking in row major format formats
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
                      &object->model[0][0]);
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_view_proj"), 1, GL_TRUE,
-                     (const GLfloat*)view_proj);
-  glUniformMatrix3fv(glGetUniformLocation(prog, "u_normal_matrix"), 1, GL_TRUE,
-                     &normal_matrix[0][0]);
-  glUniform3fv(glGetUniformLocation(prog, "u_light_dir"), 1,
-               (vec3){0.0f, 0.0f, -1.0f});
-  glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1,
-               (vec4){0.8f, 0.8f, 0.8f, 1.0f});
+                     (const GLfloat*)camera.view_proj);
   glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1,
                object->material->color);
-  glUniform4fv(glGetUniformLocation(prog, "u_ambient_intensity"), 1,
-               (vec4){0.2f, 0.2f, 0.2f, 1.0f});
+  if (lit) {
+    vec3 light_pos_norm;
+    vec3_mov(light_pos_norm, light_pos);
+    vec3_normalize(light_pos_norm, light_pos_norm);
+    glUniform3fv(glGetUniformLocation(prog, "u_light_pos"), 1, light_pos_norm);
+    glUniform4fv(glGetUniformLocation(prog, "u_light_color"), 1,
+                 (vec4){0.8f, 0.8f, 0.8f, 1.0f});
+    glUniform4fv(glGetUniformLocation(prog, "u_ambient_intensity"), 1,
+                 (vec4){0.2f, 0.2f, 0.2f, 1.0f});
+  }
 
   glBindVertexArray(object->mesh->vao);
   glDrawElements(GL_TRIANGLES, object->mesh->index_count, GL_UNSIGNED_INT,
@@ -487,5 +493,12 @@ static void render_object(GLFWwindow* window, render_object_t* object) {
   glBindVertexArray(0);
 }
 
-void render_cube(GLFWwindow* window) { render_object(window, &objects[0]); }
-void render_ramp(GLFWwindow* window) { render_object(window, &objects[1]); }
+void render_cube(GLFWwindow* window) {
+  render_object(window, &objects[0], true);
+}
+void render_ramp(GLFWwindow* window) {
+  render_object(window, &objects[1], true);
+}
+void render_light(GLFWwindow* window) {
+  render_object(window, &objects[2], false);
+}

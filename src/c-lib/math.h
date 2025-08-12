@@ -55,8 +55,12 @@ M_INLINE void vec##n##_normalize(vec##n r, vec##n const v) { \
     } \
 } \
 \
-M_INLINE void vec##n##_dup(vec##n r, vec##n const src) { \
+M_INLINE void vec##n##_mov(vec##n r, vec##n const src) { \
     for (u32 i = 0; i < n; ++i) r[i] = src[i]; \
+} \
+\
+M_INLINE void vec##n##_negate(vec##n r) { \
+    for (u32 i = 0; i < n; ++i) r[i] = -r[i]; \
 }
 
 MATH_H_DEFINE_VEC(2)

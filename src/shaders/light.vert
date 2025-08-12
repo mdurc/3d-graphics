@@ -9,7 +9,7 @@ out vec2 v_tex_coords;
 uniform mat4 u_model; // world transform
 uniform mat4 u_view_proj; // viewport transform
 
-uniform vec3 u_light_dir;
+uniform vec3 u_light_pos;
 uniform vec4 u_light_color; // incorporates light intensity
 uniform vec4 u_ambient_intensity;
 
@@ -18,7 +18,6 @@ void main() {
   v_tex_coords = a_tex_coords;
 
   vec3 norm = mat3(u_model) * a_normal; // rotation component applied to normal
-  vec3 light_src = normalize(u_light_dir);
-  float diffuse = max(dot(norm, -light_src), 0.0);
+  float diffuse = max(dot(norm, u_light_pos), 0.0);
   v_color = (u_ambient_intensity + diffuse) * u_light_color;
 }

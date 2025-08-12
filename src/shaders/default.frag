@@ -2,11 +2,11 @@
 
 out vec4 frag_color;
 
-in vec3 normal;
-in vec2 tex_coords;
+in vec2 v_tex_coords;
 
-uniform vec4 u_color;
+uniform sampler2D u_texture0;
+uniform vec4 u_object_color;
 
 void main() {
-  frag_color = u_color;
+  frag_color = texture(u_texture0, v_tex_coords) * u_object_color;
 }
