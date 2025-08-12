@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <stddef.h>
 
+#include "GLFW/glfw3.h"
 #include "c-lib/math.h"
 #include "c-lib/misc.h"
 #include "file_io.h"
@@ -10,9 +11,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define EN_ATTRIB(_n, _sz, _member) \
+#define EN_ATTRIB(_n, _sz, _member, _vertex_type) \
   glVertexAttribPointer(_n, _sz, GL_FLOAT, GL_FALSE, \
-      sizeof(vertex_t), (void*)offsetof(vertex_t, _member)); \
+      sizeof(_vertex_type), (void*)offsetof(_vertex_type, _member)); \
   glEnableVertexAttribArray(_n);
 
 #define RAD(_t) (_t * (M_PI / 180.0f))
@@ -25,6 +26,7 @@ static u32 object_count = 0;
 static camera_t camera;
 
 static vec3 light_pos = (vec3){0.0f, 0.0f, 3.0f};
+static sprite_sheet_t font_sheet;
 
 static void mouse_callback(GLFWwindow* window, f64 xpos, f64 ypos) {
   (void)window;
@@ -129,7 +131,7 @@ static u32 create_shader_program(const char* const path_vert,
 }
 
 // vertices_size and indices_size are the number of bytes in the respective arrs
-static mesh_t create_mesh(vertex_t* vertices, u32 vertices_size, u32* indices,
+static mesh_t create_mesh(vertex3d_t* vertices, u32 vertices_size, u32* indices,
                           u32 indices_size) {
   // vao is needed for rendering, can't just use the vbo
   // ebo is for element index-based rendering for reusing vertex indices
@@ -146,9 +148,9 @@ static mesh_t create_mesh(vertex_t* vertices, u32 vertices_size, u32* indices,
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
 
-  EN_ATTRIB(0, 3, position);   // [x, y, z]
-  EN_ATTRIB(1, 3, normal);     // [x, y, z]
-  EN_ATTRIB(2, 2, tex_coords); // [u, v]
+  EN_ATTRIB(0, 3, position, vertex3d_t);   // [x, y, z]
+  EN_ATTRIB(1, 3, normal, vertex3d_t);     // [x, y, z]
+  EN_ATTRIB(2, 2, tex_coords, vertex3d_t); // [u, v]
 
   // do not unbind EBO before unbinding VAO, as the VAO tracks ebo bindings
   glBindVertexArray(0);                     // unbind vao
@@ -166,7 +168,7 @@ static mesh_t create_mesh(vertex_t* vertices, u32 vertices_size, u32* indices,
 static mesh_t create_cube_mesh(void) {
   // normally we would only need 8 vertices with the ebo, but when we
   // add lighting and normals, we need to specify each one per vertex on face
-  vertex_t vertices[] = {
+  vertex3d_t vertices[] = {
       // front face
       {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
       {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
@@ -212,7 +214,7 @@ static mesh_t create_cube_mesh(void) {
 }
 
 static mesh_t create_ramp_mesh(void) {
-  vertex_t vertices[] = {
+  vertex3d_t vertices[] = {
       // front face (ramp)
       {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.707f, 0.707f}, {0.0f, 0.0f}},
       {{0.5f, -0.5f, 0.5f}, {0.0f, 0.707f, 0.707f}, {1.0f, 0.0f}},
@@ -249,6 +251,94 @@ static mesh_t create_ramp_mesh(void) {
   return create_mesh(vertices, sizeof(vertices), indices, sizeof(indices));
 }
 
+static mesh_t create_sphere_mesh(u32 x_segments, u32 y_segments) {
+  u32 vertices_size = (x_segments + 1) * (y_segments + 1);
+  vertex3d_t* vertices =
+      (vertex3d_t*)malloc(vertices_size * sizeof(vertex3d_t));
+  ASSERT(vertices);
+  for (u32 y = 0; y <= y_segments; ++y) {
+    for (u32 x = 0; x <= x_segments; ++x) {
+      f32 x_segment = (f32)x / (f32)x_segments; // normalize theta
+      f32 y_segment = (f32)y / (f32)y_segments; // normalize phi
+      // theta wraps around 2pi rad and phi only goes north to south: pi
+      // convert spherical to cartesian coordinates
+      f32 x_pos = cos(x_segment * 2.0f * M_PI) * sin(y_segment * M_PI);
+      f32 y_pos = cos(y_segment * M_PI);
+      f32 z_pos = sin(x_segment * 2.0f * M_PI) * sin(y_segment * M_PI);
+      u32 index = y * (x_segments + 1) + x;
+      vertices[index].position[0] = x_pos;
+      vertices[index].position[1] = y_pos;
+      vertices[index].position[2] = z_pos;
+      // normals are the same as the positions in spheres, assuming const radius
+      vertices[index].normal[0] = x_pos;
+      vertices[index].normal[1] = y_pos;
+      vertices[index].normal[2] = z_pos;
+      vertices[index].tex_coords[0] = x_segment;
+      vertices[index].tex_coords[1] = y_segment;
+    }
+  }
+  u32 indices_size = x_segments * y_segments * 6;
+  u32* indices = (u32*)malloc(indices_size * sizeof(u32));
+  ASSERT(indices);
+  u32 index = 0;
+  for (u32 y = 0; y < y_segments; ++y) {
+    for (u32 x = 0; x < x_segments; ++x) {
+      indices[index++] = (y + 1) * (x_segments + 1) + x;
+      indices[index++] = y * (x_segments + 1) + x;
+      indices[index++] = y * (x_segments + 1) + x + 1;
+      indices[index++] = (y + 1) * (x_segments + 1) + x;
+      indices[index++] = y * (x_segments + 1) + x + 1;
+      indices[index++] = (y + 1) * (x_segments + 1) + x + 1;
+    }
+  }
+  mesh_t sphere_mesh = create_mesh(vertices, vertices_size * sizeof(vertex3d_t),
+                                   indices, indices_size * sizeof(u32));
+  free(vertices);
+  free(indices);
+  return sphere_mesh;
+}
+
+static mesh_t create_quad_mesh(void) {
+  vertex2d_t vertices[] = {
+      {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},   // top right
+      {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},  // bottom right
+      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}}, // bottom left
+      {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f}},  // top left
+  };
+
+  u32 indices[] = {0, 1, 3, 1, 2, 3};
+
+  // Since we are using a new 2D shader, we only need to enable
+  // the vertex attributes that the 2D shader is using (pos and tex_coords).
+  u32 vao, vbo, ebo;
+  glGenVertexArrays(1, &vao);
+  glGenBuffers(1, &vbo);
+  glGenBuffers(1, &ebo);
+
+  glBindVertexArray(vao);
+
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+               GL_STATIC_DRAW);
+
+  EN_ATTRIB(0, 3, position, vertex2d_t);
+  EN_ATTRIB(1, 2, tex_coords, vertex2d_t);
+
+  glBindVertexArray(0);                     // unbind vao
+  glBindBuffer(GL_ARRAY_BUFFER, 0);         // unbind vbo
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // unbind ebo (after vao)
+
+  return (mesh_t){
+      .vao = vao,
+      .vbo = vbo,
+      .ebo = ebo,
+      .index_count = sizeof(indices) / sizeof(u32),
+  };
+}
+
 static u32 create_white_texture(void) {
   // this will be the blank texture so that whatever color we wish to draw to
   // the object, it will be that color only
@@ -270,9 +360,6 @@ static u32 create_texture(const char* path) {
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
   int width, height, channel_count;
   u8* image_data = stbi_load(path, &width, &height, &channel_count, 0);
@@ -295,9 +382,9 @@ static material_t create_material(u32 shader_prog, vec4 color, u32 texture_id) {
   };
 }
 
-static void update_models(GLFWwindow* window, f32 angle) {
+static void update_models(f32 angle) {
   int width, height;
-  glfwGetFramebufferSize(window, &width, &height);
+  glfwGetFramebufferSize(glfwGetCurrentContext(), &width, &height);
   f32 aspect_ratio = (f32)width / (f32)height;
 
   mat4x4 rotation;
@@ -306,16 +393,17 @@ static void update_models(GLFWwindow* window, f32 angle) {
   mat4x4_rotate_x(rotation, rotation, angle / 2.0f);
   // mat4x4_rotate_z(rotation, rotation, angle / 3.0f);
 
-  mat4x4_identity(objects[0].model);
-  mat4x4_identity(objects[1].model);
-  mat4x4_identity(objects[2].model);
+  for (u32 i = 0; i < object_count; ++i) mat4x4_identity(objects[i].model);
+
   mat4x4_translate(objects[0].model, -1.0f, 0.0f, 0.0f);
   mat4x4_translate(objects[1].model, 1.0f, 0.0f, 0.0f);
   mat4x4_translate(objects[2].model, light_pos[0], light_pos[1], light_pos[2]);
+  mat4x4_translate(objects[3].model, 0.0f, 2.0f, 0.0f);
 
   mat4x4_mul(objects[0].model, objects[0].model, rotation);
   mat4x4_mul(objects[1].model, objects[1].model, rotation);
   mat4x4_scale_aniso(objects[2].model, objects[2].model, 0.2f, 0.2f, 0.2f);
+  mat4x4_scale_aniso(objects[3].model, objects[3].model, 0.8f, 0.8f, 0.8f);
 
   mat4x4 view;
   vec3 camera_front;
@@ -350,11 +438,14 @@ GLFWwindow* render_init(u32 width, u32 height) {
 
   glViewport(0, 0, framebuffer_width, framebuffer_height);
   glEnable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   stbi_set_flip_vertically_on_load(1);
 
   u32 tex_cube = create_texture("res/map_wall.png");
   u32 tex_ramp = create_texture("res/map_floor.png");
+  u32 tex_font = create_texture("res/font.png");
   u32 tex_white = create_white_texture();
 
   u32 default_prog = create_shader_program("src/shaders/default.vert",
@@ -364,14 +455,28 @@ GLFWwindow* render_init(u32 width, u32 height) {
 
   meshes[0] = create_cube_mesh();
   meshes[1] = create_ramp_mesh();
+  meshes[2] = create_sphere_mesh(64, 64);
+  meshes[3] = create_quad_mesh();
   materials[0] = create_material(light_prog, TURQUOISE, tex_cube);
-  materials[1] = create_material(light_prog, RED, tex_white);
-  materials[2] = create_material(default_prog, YELLOW, tex_white);
+  materials[1] = create_material(light_prog, WHITE, tex_ramp);
+  materials[2] = create_material(light_prog, RED, tex_white);
+  materials[3] = create_material(default_prog, YELLOW, tex_white);
+  materials[4] = create_material(default_prog, WHITE, tex_white);
+  materials[5] = create_material(default_prog, WHITE, tex_font);
 
-  object_count = 3;
+  object_count = 5;
   objects[0] = (render_object_t){.mesh = &meshes[0], .material = &materials[0]};
-  objects[1] = (render_object_t){.mesh = &meshes[1], .material = &materials[1]};
-  objects[2] = (render_object_t){.mesh = &meshes[0], .material = &materials[2]};
+  objects[1] = (render_object_t){.mesh = &meshes[1], .material = &materials[2]};
+  objects[2] = (render_object_t){.mesh = &meshes[0], .material = &materials[3]};
+  objects[3] = (render_object_t){.mesh = &meshes[2], .material = &materials[2]};
+  objects[4] = (render_object_t){.mesh = &meshes[3], .material = &materials[4]};
+
+  font_sheet.width = 128;
+  font_sheet.height = 128;
+  font_sheet.cell_width = 8;
+  font_sheet.cell_height = 8;
+  font_sheet.material = &materials[5];
+  font_sheet.mesh = &meshes[3];
 
   LOG("Render window and geometry/meshes initialized");
 
@@ -409,10 +514,9 @@ void render_begin(void) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void render_end(GLFWwindow* window) { glfwSwapBuffers(window); }
+void render_end(void) { glfwSwapBuffers(glfwGetCurrentContext()); }
 
-static void render_object(GLFWwindow* window, render_object_t* object,
-                          bool lit) {
+static void render_object(render_object_t* object, bool lit) {
   /* lighting
 
      Diffuse Lighting Equation: R = D * I * cos(T)
@@ -459,15 +563,11 @@ static void render_object(GLFWwindow* window, render_object_t* object,
      no angle of incidence in the diffuse calculation. Thus, the formula is
      simply: ambient light intensity * diffuse surface color.
   */
-  update_models(window, glfwGetTime());
+  update_models(glfwGetTime());
   ASSERT(object->mesh && object->material);
 
   u32 prog = object->material->shader_program;
   glUseProgram(prog);
-
-  glUniform1i(glGetUniformLocation(prog, "u_texture0"), 0);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, object->material->texture_id);
 
   // transpose is true, because we are tracking in row major format formats
   glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
@@ -487,18 +587,142 @@ static void render_object(GLFWwindow* window, render_object_t* object,
                  (vec4){0.2f, 0.2f, 0.2f, 1.0f});
   }
 
+  glUniform1i(glGetUniformLocation(prog, "u_texture0"), 0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, object->material->texture_id);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
   glBindVertexArray(object->mesh->vao);
   glDrawElements(GL_TRIANGLES, object->mesh->index_count, GL_UNSIGNED_INT,
                  NULL);
   glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void render_cube(GLFWwindow* window) {
-  render_object(window, &objects[0], true);
+static void render_quad_impl(render_object_t* object) {
+  ASSERT(object->mesh && object->material);
+
+  int width, height;
+  glfwGetWindowSize(glfwGetCurrentContext(), &width, &height);
+  mat4x4_identity(object->model);
+  mat4x4_translate(object->model, width * 0.5f, height * 0.5f, 0.0f);
+  mat4x4_scale_aniso(object->model, object->model, 5, 5, 1.0f);
+  mat4x4 ortho;
+  mat4x4_ortho(ortho, 0.0f, (f32)width, 0.0f, (f32)height, -1.0f, 1.0f);
+
+  glDisable(GL_DEPTH_TEST);
+  u32 prog = object->material->shader_program;
+  glUseProgram(prog);
+
+  // transpose is true, because we are tracking in row major format formats
+  glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
+                     &object->model[0][0]);
+  glUniformMatrix4fv(glGetUniformLocation(prog, "u_view_proj"), 1, GL_TRUE,
+                     (const GLfloat*)ortho);
+  glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1,
+               object->material->color);
+
+  glUniform1i(glGetUniformLocation(prog, "u_texture0"), 0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, object->material->texture_id);
+
+  // for 2d pixels
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  glBindVertexArray(object->mesh->vao);
+  glDrawElements(GL_TRIANGLES, object->mesh->index_count, GL_UNSIGNED_INT,
+                 NULL);
+  glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glEnable(GL_DEPTH_TEST);
 }
-void render_ramp(GLFWwindow* window) {
-  render_object(window, &objects[1], true);
+
+static void calculate_sprite_tex_coords(vec4 result, f32 row, f32 column,
+                                        f32 texture_width, f32 texture_height,
+                                        f32 cell_width, f32 cell_height) {
+  f32 w = 1.0f / (texture_width / cell_width);
+  f32 h = 1.0f / (texture_height / cell_height);
+  f32 x = column * w;
+  // flip the row so that 0,0 index in the texture coordinates is the top left
+  f32 y = ((texture_height / cell_height - 1) - row) * h;
+  result[0] = x;
+  result[1] = y;
+  result[2] = x + w;
+  result[3] = y + h;
 }
-void render_light(GLFWwindow* window) {
-  render_object(window, &objects[2], false);
+
+void render_sprite_frame(f32 row, f32 column, vec2 position, vec2 size,
+                         vec4 color, bool is_flipped) {
+  ASSERT(font_sheet.material && font_sheet.mesh);
+
+  int width, height;
+  glfwGetWindowSize(glfwGetCurrentContext(), &width, &height);
+  mat4x4 ortho;
+  mat4x4_ortho(ortho, 0.0f, (f32)width, 0.0f, (f32)height, -1.0f, 1.0f);
+
+  u32 prog = font_sheet.material->shader_program;
+  glUseProgram(prog);
+
+  mat4x4 model;
+  mat4x4_identity(model);
+  mat4x4_translate(model, position[0], position[1], 0.0f);
+  mat4x4_scale_aniso(model, model, size[0], size[1], 1.0f);
+
+  glUniformMatrix4fv(glGetUniformLocation(prog, "u_model"), 1, GL_TRUE,
+                     &model[0][0]);
+  glUniformMatrix4fv(glGetUniformLocation(prog, "u_view_proj"), 1, GL_TRUE,
+                     (const GLfloat*)ortho);
+  glUniform4fv(glGetUniformLocation(prog, "u_object_color"), 1, color);
+
+  vec4 tex_coords;
+  calculate_sprite_tex_coords(tex_coords, row, column, font_sheet.width,
+                              font_sheet.height, font_sheet.cell_width,
+                              font_sheet.cell_height);
+  if (is_flipped) {
+    f32 tmp = tex_coords[0];
+    tex_coords[0] = tex_coords[2];
+    tex_coords[2] = tmp;
+  }
+
+  f32 u_min = tex_coords[0];
+  f32 v_min = tex_coords[1];
+  f32 u_max = tex_coords[2];
+  f32 v_max = tex_coords[3];
+
+  vertex2d_t vertices[] = {
+      {{0.5f, 0.5f, 0.0f}, {u_max, v_max}},   // top right
+      {{0.5f, -0.5f, 0.0f}, {u_max, v_min}},  // bottom right
+      {{-0.5f, -0.5f, 0.0f}, {u_min, v_min}}, // bottom left
+      {{-0.5f, 0.5f, 0.0f}, {u_min, v_max}},  // top left
+  };
+
+  glBindVertexArray(font_sheet.mesh->vao);
+  glBindBuffer(GL_ARRAY_BUFFER, font_sheet.mesh->vbo);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+
+  glUniform1i(glGetUniformLocation(prog, "u_texture0"), 0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, font_sheet.material->texture_id);
+
+  // for 2d pixels
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  glDisable(GL_DEPTH_TEST);
+  glDrawElements(GL_TRIANGLES, font_sheet.mesh->index_count, GL_UNSIGNED_INT,
+                 NULL);
+
+  glEnable(GL_DEPTH_TEST);
+  glBindVertexArray(0);
+  glBindTexture(GL_TEXTURE_2D, 0);
 }
+
+void render_cube(void) { render_object(&objects[0], true); }
+void render_ramp(void) { render_object(&objects[1], true); }
+void render_light(void) { render_object(&objects[2], false); }
+void render_sphere(void) { render_object(&objects[3], true); }
+void render_quad(void) { render_quad_impl(&objects[4]); }

@@ -10,12 +10,15 @@ typedef struct {
   vec3 position;
   vec3 normal;
   vec2 tex_coords;
-} vertex_t;
+} vertex3d_t;
 
 typedef struct {
-  u32 vao;
-  u32 vbo;
-  u32 ebo;
+  vec3 position;
+  vec2 tex_coords;
+} vertex2d_t;
+
+typedef struct {
+  u32 vao, vbo, ebo;
   u32 index_count;
 } mesh_t; // raw geometry on the GPU
 
@@ -26,8 +29,8 @@ typedef struct {
 } material_t; // appearance of an object
 
 typedef struct {
-  mesh_t* mesh;
   material_t* material;
+  mesh_t* mesh;
   mat4x4 model;
 } render_object_t; // single drawable object
 
@@ -42,6 +45,12 @@ typedef struct {
   mat4x4 view_proj;
 } camera_t;
 
+typedef struct {
+  material_t* material;
+  mesh_t* mesh;
+  f32 width, height, cell_width, cell_height;
+} sprite_sheet_t; // 2d ui element sheet
+
 GLFWwindow* render_init(u32 width, u32 height);
 void render_destroy(GLFWwindow* window);
 
@@ -50,8 +59,12 @@ camera_t* get_camera(void);
 void get_camera_front(vec3 result);
 
 void render_begin(void);
-void render_end(GLFWwindow* window);
+void render_end(void);
 
-void render_cube(GLFWwindow* window);
-void render_ramp(GLFWwindow* window);
-void render_light(GLFWwindow* window);
+void render_cube(void);
+void render_ramp(void);
+void render_light(void);
+void render_sphere(void);
+void render_quad(void);
+void render_sprite_frame(f32 row, f32 column, vec2 position, vec2 size,
+                         vec4 color, bool is_flipped);

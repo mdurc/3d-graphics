@@ -1,3 +1,5 @@
+#include "c-lib/misc.h"
+#include "font.h"
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -67,10 +69,15 @@ int main(void) {
     input_handle(state.time.delta);
 
     render_begin();
-    render_cube(state.window);
-    render_ramp(state.window);
-    render_light(state.window);
-    render_end(state.window);
+    render_cube();
+    render_ramp();
+    render_light();
+    render_sphere();
+    render_quad();
+
+    font_render_str("abcdefghijklmnopqrstuvwxyz\nABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                    (vec2){50, 100}, (vec2){50, 50}, WHITE);
+    render_end();
 
     time_update_late();
   }
