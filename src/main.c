@@ -43,16 +43,16 @@ static void input_handle(float delta_time) {
     vec3_add(camera->position, camera->position, move_vector);
   }
   if (state.input.states[INPUT_KEY_UP]) {
-    (*light)[1] += 0.1f;
+    (*light)[1] += camera_speed;
   }
   if (state.input.states[INPUT_KEY_DOWN]) {
-    (*light)[1] -= 0.1f;
+    (*light)[1] -= camera_speed;
   }
   if (state.input.states[INPUT_KEY_LEFT]) {
-    (*light)[0] -= 0.1f;
+    (*light)[0] -= camera_speed;
   }
   if (state.input.states[INPUT_KEY_RIGHT]) {
-    (*light)[0] += 0.1f;
+    (*light)[0] += camera_speed;
   }
 }
 
